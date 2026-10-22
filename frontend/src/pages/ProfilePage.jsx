@@ -55,7 +55,7 @@ export default function ProfilePage() {
       <div className="profile-head">
         <div className="avatar avatar-lg">{user.name[0]?.toUpperCase()}</div>
         <h1>{user.name}</h1>
-        <p className="muted">{user.email}</p>
+        <p className="muted">@{user.username}</p>
         <button className="btn btn-ghost btn-sm" onClick={openEdit}>
           <Icon name="edit" size={16} /> Edit profile
         </button>

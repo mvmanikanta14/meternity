@@ -8,7 +8,7 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
-    email TEXT NOT NULL UNIQUE,
+    username TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     lmp_date TEXT,
     blood_group TEXT,
@@ -65,6 +65,19 @@ CREATE TABLE IF NOT EXISTS kick_sessions (
 def init_db() -> None:
     with get_conn() as conn:
         conn.executescript(SCHEMA)
+        migrate_email_to_username(conn)
+
+
+def migrate_email_to_username(conn) -> None:
+    """Older databases stored an email; turn it into a username (the part before @)."""
+    columns = [r["name"] for r in conn.execute("PRAGMA table_info(users)")]
+    if "email" not in columns:
+        return
+    conn.execute("ALTER TABLE users RENAME COLUMN email TO username")
+    for row in conn.execute("SELECT id, username FROM users WHERE username LIKE '%@%'").fetchall():
+        candidate = row["username"].split("@")[0]
+        if not conn.execute("SELECT 1 FROM users WHERE username = ?", (candidate,)).fetchone():
+            conn.execute("UPDATE users SET username = ? WHERE id = ?", (candidate, row["id"]))
 
 
 @contextmanager

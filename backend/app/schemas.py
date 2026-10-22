@@ -1,3 +1,4 @@
+import re
 from datetime import date
 from typing import Optional
 
@@ -6,20 +7,20 @@ from pydantic import BaseModel, Field, field_validator
 
 class RegisterIn(BaseModel):
     name: str = Field(min_length=1, max_length=80)
-    email: str = Field(min_length=3, max_length=120)
+    username: str = Field(min_length=3, max_length=30)
     password: str = Field(min_length=6, max_length=128)
 
-    @field_validator("email")
+    @field_validator("username")
     @classmethod
-    def normalise_email(cls, v: str) -> str:
+    def normalise_username(cls, v: str) -> str:
         v = v.strip().lower()
-        if "@" not in v or "." not in v.split("@")[-1]:
-            raise ValueError("Enter a valid email address")
+        if not re.fullmatch(r"[a-z0-9._]{3,30}", v):
+            raise ValueError("Username can use only letters, numbers, dot and underscore (3-30 characters)")
         return v
 
 
 class LoginIn(BaseModel):
-    email: str
+    username: str
     password: str
 
 

@@ -5,7 +5,7 @@ import { ErrorBox } from '../components/ui.jsx'
 export default function AuthPage() {
   const { login, register } = useAuth()
   const [mode, setMode] = useState('login')
-  const [form, setForm] = useState({ name: '', email: '', password: '' })
+  const [form, setForm] = useState({ name: '', username: '', password: '' })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -16,8 +16,8 @@ export default function AuthPage() {
     setError('')
     setBusy(true)
     try {
-      if (mode === 'login') await login(form.email, form.password)
-      else await register(form.name, form.email, form.password)
+      if (mode === 'login') await login(form.username, form.password)
+      else await register(form.name, form.username, form.password)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -53,8 +53,16 @@ export default function AuthPage() {
           </label>
         )}
         <label className="field">
-          <span>Email</span>
-          <input type="email" value={form.email} onChange={set('email')} placeholder="you@example.com" required autoComplete="email" />
+          <span>Username</span>
+          <input
+            value={form.username}
+            onChange={set('username')}
+            placeholder="e.g. priya"
+            required
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
+          />
         </label>
         <label className="field">
           <span>Password</span>

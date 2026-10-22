@@ -28,7 +28,7 @@ def on_startup() -> None:
 
 # ---------- helpers ----------
 
-PUBLIC_USER_FIELDS = ("id", "name", "email", "lmp_date", "blood_group", "doctor_name", "hospital", "phone")
+PUBLIC_USER_FIELDS = ("id", "name", "username", "lmp_date", "blood_group", "doctor_name", "hospital", "phone")
 
 
 def public_user(user: dict) -> dict:
@@ -87,11 +87,11 @@ def appointment_row(row) -> dict:
 @app.post("/api/auth/register")
 def register(body: RegisterIn):
     with get_conn() as conn:
-        if conn.execute("SELECT 1 FROM users WHERE email = ?", (body.email,)).fetchone():
-            raise HTTPException(status_code=400, detail="An account with this email already exists")
+        if conn.execute("SELECT 1 FROM users WHERE username = ?", (body.username,)).fetchone():
+            raise HTTPException(status_code=400, detail="This username is already taken")
         cur = conn.execute(
-            "INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)",
-            (body.name.strip(), body.email, hash_password(body.password)),
+            "INSERT INTO users (name, username, password_hash) VALUES (?, ?, ?)",
+            (body.name.strip(), body.username, hash_password(body.password)),
         )
         user = row_to_dict(conn.execute("SELECT * FROM users WHERE id = ?", (cur.lastrowid,)).fetchone())
     return {"token": create_session(user["id"]), "user": public_user(user)}
@@ -100,9 +100,9 @@ def register(body: RegisterIn):
 @app.post("/api/auth/login")
 def login(body: LoginIn):
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM users WHERE email = ?", (body.email.strip().lower(),)).fetchone()
+        row = conn.execute("SELECT * FROM users WHERE username = ?", (body.username.strip().lower(),)).fetchone()
     if row is None or not verify_password(body.password, row["password_hash"]):
-        raise HTTPException(status_code=401, detail="Incorrect email or password")
+        raise HTTPException(status_code=401, detail="Incorrect username or password")
     user = row_to_dict(row)
     return {"token": create_session(user["id"]), "user": public_user(user)}
 
