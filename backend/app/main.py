@@ -35,8 +35,9 @@ def seed_default_user() -> None:
     with get_conn() as conn:
         if conn.execute("SELECT 1 FROM users WHERE username = ?", (DEFAULT_USER["username"],)).fetchone():
             return
+        # ON CONFLICT: two serverless instances may start at the same moment.
         conn.execute(
-            "INSERT INTO users (name, username, password_hash) VALUES (?, ?, ?)",
+            "INSERT INTO users (name, username, password_hash) VALUES (?, ?, ?) ON CONFLICT (username) DO NOTHING",
             (DEFAULT_USER["name"], DEFAULT_USER["username"], hash_password(DEFAULT_USER["password"])),
         )
 
@@ -104,11 +105,11 @@ def register(body: RegisterIn):
     with get_conn() as conn:
         if conn.execute("SELECT 1 FROM users WHERE username = ?", (body.username,)).fetchone():
             raise HTTPException(status_code=400, detail="This username is already taken")
-        cur = conn.execute(
-            "INSERT INTO users (name, username, password_hash) VALUES (?, ?, ?)",
+        new_id = conn.execute(
+            "INSERT INTO users (name, username, password_hash) VALUES (?, ?, ?) RETURNING id",
             (body.name.strip(), body.username, hash_password(body.password)),
-        )
-        user = row_to_dict(conn.execute("SELECT * FROM users WHERE id = ?", (cur.lastrowid,)).fetchone())
+        ).fetchone()["id"]
+        user = row_to_dict(conn.execute("SELECT * FROM users WHERE id = ?", (new_id,)).fetchone())
     return {"token": create_session(user["id"]), "user": public_user(user)}
 
 
@@ -195,16 +196,16 @@ def list_logs(user: dict = Depends(current_user)):
 @app.post("/api/health-logs", status_code=201)
 def add_log(body: HealthLogIn, user: dict = Depends(current_user)):
     with get_conn() as conn:
-        cur = conn.execute(
+        new_id = conn.execute(
             """INSERT INTO health_logs
                (user_id, log_date, weight, systolic, diastolic, water_glasses, mood, symptoms, notes)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""",
             (
                 user["id"], body.log_date.isoformat(), body.weight, body.systolic, body.diastolic,
                 body.water_glasses, body.mood, json.dumps(body.symptoms), body.notes,
             ),
-        )
-        row = conn.execute("SELECT * FROM health_logs WHERE id = ?", (cur.lastrowid,)).fetchone()
+        ).fetchone()["id"]
+        row = conn.execute("SELECT * FROM health_logs WHERE id = ?", (new_id,)).fetchone()
     return health_row(row)
 
 
@@ -230,13 +231,13 @@ def list_appointments(user: dict = Depends(current_user)):
 @app.post("/api/appointments", status_code=201)
 def add_appointment(body: AppointmentIn, user: dict = Depends(current_user)):
     with get_conn() as conn:
-        cur = conn.execute(
+        new_id = conn.execute(
             """INSERT INTO appointments (user_id, title, doctor, location, date, time, notes, done)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""",
             (user["id"], body.title, body.doctor, body.location, body.date.isoformat(),
              body.time, body.notes, int(body.done)),
-        )
-        row = conn.execute("SELECT * FROM appointments WHERE id = ?", (cur.lastrowid,)).fetchone()
+        ).fetchone()["id"]
+        row = conn.execute("SELECT * FROM appointments WHERE id = ?", (new_id,)).fetchone()
     return appointment_row(row)
 
 
@@ -276,11 +277,11 @@ def list_kicks(user: dict = Depends(current_user)):
 @app.post("/api/kicks", status_code=201)
 def add_kicks(body: KickSessionIn, user: dict = Depends(current_user)):
     with get_conn() as conn:
-        cur = conn.execute(
-            "INSERT INTO kick_sessions (user_id, started_at, duration_seconds, kicks) VALUES (?, ?, ?, ?)",
+        new_id = conn.execute(
+            "INSERT INTO kick_sessions (user_id, started_at, duration_seconds, kicks) VALUES (?, ?, ?, ?) RETURNING id",
             (user["id"], body.started_at, body.duration_seconds, body.kicks),
-        )
-        row = conn.execute("SELECT * FROM kick_sessions WHERE id = ?", (cur.lastrowid,)).fetchone()
+        ).fetchone()["id"]
+        row = conn.execute("SELECT * FROM kick_sessions WHERE id = ?", (new_id,)).fetchone()
     return row_to_dict(row)
 
 

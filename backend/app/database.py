@@ -1,10 +1,14 @@
+import os
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
+# Live (Vercel + Neon) sets DATABASE_URL to a Postgres URL; locally we fall back to a SQLite file.
+DATABASE_URL = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL")
+USE_POSTGRES = bool(DATABASE_URL)
 DB_PATH = Path(__file__).resolve().parent.parent / "maternity.db"
 
-SCHEMA = """
+SQLITE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -61,11 +65,23 @@ CREATE TABLE IF NOT EXISTS kick_sessions (
 );
 """
 
+# Same tables for Postgres. Timestamps stay TEXT so the API returns the same shape on both.
+POSTGRES_SCHEMA = (
+    SQLITE_SCHEMA.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "SERIAL PRIMARY KEY")
+    .replace("REAL", "DOUBLE PRECISION")
+    .replace("DEFAULT CURRENT_TIMESTAMP", "DEFAULT (to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS'))")
+)
+
 
 def init_db() -> None:
     with get_conn() as conn:
-        conn.executescript(SCHEMA)
-        migrate_email_to_username(conn)
+        if USE_POSTGRES:
+            for statement in POSTGRES_SCHEMA.split(";"):
+                if statement.strip():
+                    conn.execute(statement)
+        else:
+            conn.executescript(SQLITE_SCHEMA)
+            migrate_email_to_username(conn)
 
 
 def migrate_email_to_username(conn) -> None:
@@ -80,8 +96,26 @@ def migrate_email_to_username(conn) -> None:
             conn.execute("UPDATE users SET username = ? WHERE id = ?", (candidate, row["id"]))
 
 
+class PostgresConn:
+    """Lets the app keep writing SQLite-style `?` placeholders against Postgres."""
+
+    def __init__(self, conn):
+        self._conn = conn
+
+    def execute(self, sql: str, params=()):
+        return self._conn.execute(sql.replace("?", "%s"), params)
+
+
 @contextmanager
 def get_conn():
+    if USE_POSTGRES:
+        import psycopg
+        from psycopg.rows import dict_row
+
+        with psycopg.connect(DATABASE_URL, row_factory=dict_row) as conn:
+            yield PostgresConn(conn)
+        return
+
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")

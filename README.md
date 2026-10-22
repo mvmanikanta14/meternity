@@ -48,6 +48,22 @@ Open http://localhost:5173. The dev server proxies `/api` to the backend on port
 `http://<your-PC-IP>:5173` (shown in the terminal as "Network"). Use the browser's
 **Add to Home screen** to install it like an app.
 
+### Default login
+
+On startup the backend creates the account **prasu / 123456** if it doesn't exist.
+
+## Deploy to Vercel
+
+The repo is ready for Vercel: `vercel.json` builds the frontend, and `api/index.py` runs the
+FastAPI backend as a serverless function under `/api`.
+
+1. On vercel.com, **Add New → Project** and import this GitHub repo (keep the default settings).
+2. In the project, open **Storage → Create Database → Neon (Postgres)** and connect it to the
+   project. This sets `DATABASE_URL`, which switches the backend from SQLite to Postgres.
+3. **Redeploy** so the new variable is picked up.
+
+Without `DATABASE_URL` the backend uses the local SQLite file, which Vercel does not keep.
+
 ## Project structure
 
 ```
