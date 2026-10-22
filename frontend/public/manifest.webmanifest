@@ -1,0 +1,13 @@
+{
+  "name": "Maternity – Pregnancy Tracker",
+  "short_name": "Maternity",
+  "description": "Track your 9-month pregnancy journey week by week.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fff7f5",
+  "theme_color": "#e8618c",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
