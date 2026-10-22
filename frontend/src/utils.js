@@ -15,6 +15,23 @@ export const fmtWeekday = (iso) => fmtDate(iso, { weekday: 'short', day: 'numeri
 
 export const daysUntil = (iso) => Math.round((parse(iso) - parse(todayISO())) / 86400000)
 
+// Pregnancy week (1-40) on a given date, counted from the last period.
+export const weekOn = (lmp, iso) =>
+  Math.max(1, Math.min(40, Math.floor(Math.round((parse(iso) - parse(lmp)) / 86400000) / 7) + 1))
+
+export const WATER_GOAL = 10
+
+export const fmtTime = (stamp) => new Date(stamp).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })
+
+export const fmtTime24 = (hhmm) => {
+  if (!hhmm) return ''
+  const [h, m] = hhmm.split(':').map(Number)
+  return new Date(2000, 0, 1, h, m).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })
+}
+
+export const fmtSize = (bytes) =>
+  bytes > 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`
+
 export const fmtDuration = (sec) => {
   const m = Math.floor(sec / 60)
   const s = sec % 60

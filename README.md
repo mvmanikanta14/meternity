@@ -19,6 +19,12 @@ deletes it, and it does not sync between phones or browsers.
 | **Health** | Daily log: weight, blood pressure, water, mood, symptoms, notes; weight trend chart; high-BP warning |
 | **Visits** | Doctor appointments (check-ups, scans, tests): add, edit, mark done, upcoming / past |
 | **Kick counter** | Tap to count baby kicks with a timer, goal of 10, saved history |
+| **Medicines & water** | Daily medicine checklist, water glasses counter, last-7-days view, medicine-time and water reminders (while the app is open) |
+| **Scan & lab reports** | Upload report photos / PDFs (kept in IndexedDB), enter key values (Hb, sugar, TSH, platelets, urine, baby heart rate, AFI, EFW), see them checked against pregnancy ranges with trend charts |
+| **Contraction timer** | Start/stop each contraction, length and gap, last-hour averages, 5-1-1 "go to hospital" alert |
+| **Hospital bag** | Ready-made packing checklist by section (documents, mom, baby, partner), add your own items |
+| **Baby names** | Shortlist with meanings, favourites, girl/boy filter and name ideas |
+| **Backup & restore** | Download all data (including report files) as one file and restore it on any phone or browser |
 | **Me (Profile)** | Blood group, doctor, hospital, phone, change dates, emergency warning signs + 108 call button |
 
 ## Run it
@@ -54,7 +60,9 @@ frontend/
     pages/         # Home, Weeks, Health, Appointments, KickCounter, Profile, Auth, Setup
     components/    # Layout (bottom tab bar), icons, bottom sheet, progress ring
     context/       # auth state
-    api.js         # data layer: accounts, logs, visits, kicks saved in localStorage
+    api.js         # data layer: everything saved in localStorage
+    fileStore.js   # report photos / PDFs saved in IndexedDB
+    reportRanges.js # pregnancy reference ranges used to check report values
     weekData.js    # 40-week pregnancy guide content
     styles.css     # design system
 ```

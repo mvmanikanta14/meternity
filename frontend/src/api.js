@@ -31,8 +31,21 @@ const emptyDb = () => ({
   health_logs: [],
   appointments: [],
   kick_sessions: [],
+  medicines: [],
+  med_log: [],
+  water_log: [],
+  bag_items: [],
+  baby_names: [],
+  contractions: [],
+  reports: [],
   next_id: 1,
 })
+
+// Tables holding one user's rows; used by backup/restore.
+const USER_TABLES = [
+  'health_logs', 'appointments', 'kick_sessions', 'medicines', 'med_log', 'water_log',
+  'bag_items', 'baby_names', 'contractions', 'reports',
+]
 
 function loadDb() {
   try {
@@ -124,7 +137,11 @@ const daysBetween = (fromIso, toIso) => Math.round((isoToUtc(toIso) - isoToUtc(f
 
 // ---------- helpers ----------
 
-const PUBLIC_USER_FIELDS = ['id', 'name', 'username', 'lmp_date', 'blood_group', 'doctor_name', 'hospital', 'phone']
+const PUBLIC_USER_FIELDS = [
+  'id', 'name', 'username', 'lmp_date', 'blood_group', 'doctor_name', 'hospital', 'phone',
+  'water_reminder', 'last_backup',
+]
+const PROFILE_FIELDS = ['name', 'lmp_date', 'blood_group', 'doctor_name', 'hospital', 'phone', 'water_reminder']
 
 function publicUser(user) {
   const data = Object.fromEntries(PUBLIC_USER_FIELDS.map((k) => [k, user[k] ?? null]))
@@ -280,6 +297,8 @@ const updateMe = (body) =>
       if ('doctor_name' in body) updates.doctor_name = checkText(body.doctor_name, 'Doctor name', 80)
       if ('hospital' in body) updates.hospital = checkText(body.hospital, 'Hospital', 120)
       if ('phone' in body) updates.phone = checkText(body.phone, 'Phone', 20)
+      if ('water_reminder' in body)
+        updates.water_reminder = checkNumber(body.water_reminder, 'Reminder', { min: 0, max: 240, integer: true, inclusive: true }) || 0
 
       Object.assign(user, updates)
       return publicUser(user)
@@ -364,6 +383,278 @@ const deleteFrom = (table, id) =>
     { write: true },
   )
 
+const ownRows = (db, table, user) => db[table].filter((r) => r.user_id === user.id)
+
+// list / add / update / remove for a simple per-user table. `clean` validates and
+// returns the stored fields; update merges the change into the existing row first.
+function crud(table, clean, order) {
+  return {
+    list: () => listFor(table, order),
+    add: (body) =>
+      tx(
+        (db) => {
+          const user = currentUser(db)
+          const row = { id: nextId(db), user_id: user.id, ...clean(body), created_at: nowStamp() }
+          db[table].push(row)
+          return { ...row }
+        },
+        { write: true },
+      ),
+    update: (id, body) =>
+      tx(
+        (db) => {
+          const user = currentUser(db)
+          const row = ownedOr404(db[table], id, user.id)
+          Object.assign(row, clean({ ...row, ...body }))
+          return { ...row }
+        },
+        { write: true },
+      ),
+    remove: (id) => deleteFrom(table, id),
+  }
+}
+
+const byText = (key) => (a, b) => String(a[key] ?? '').localeCompare(String(b[key] ?? ''))
+const isTime = (v) => typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v)
+const isStamp = (v) => typeof v === 'string' && !Number.isNaN(Date.parse(v))
+
+// ---------- medicines & water ----------
+
+function medicineFields(b) {
+  const name = (b.name || '').trim()
+  if (!name) fail('Please enter the medicine name')
+  if (!blank(b.time) && !isTime(b.time)) fail('Please enter a valid time')
+  return {
+    name: checkText(name, 'Name', 60),
+    dose: checkText(b.dose, 'Dose', 60),
+    time: blank(b.time) ? null : b.time,
+    active: b.active !== false,
+  }
+}
+
+const medicineOrder = (a, b) => (a.time || '99:99').localeCompare(b.time || '99:99') || byText('name')(a, b)
+const medicines = crud('medicines', medicineFields, medicineOrder)
+
+function dailyFor(db, user, date) {
+  const meds = ownRows(db, 'medicines', user).filter((m) => m.active)
+  const takenIds = new Set(ownRows(db, 'med_log', user).filter((r) => r.date === date).map((r) => r.med_id))
+  return {
+    date,
+    medicines: meds.sort(medicineOrder),
+    taken: meds.filter((m) => takenIds.has(m.id)).map((m) => m.id),
+    water: ownRows(db, 'water_log', user).find((r) => r.date === date)?.glasses ?? 0,
+  }
+}
+
+const daily = (date = todayIso()) => tx((db) => dailyFor(db, currentUser(db), date))
+
+const dailyHistory = (days = 7) =>
+  tx((db) => {
+    const user = currentUser(db)
+    return Array.from({ length: days }, (_, i) => {
+      const d = dailyFor(db, user, addDays(todayIso(), -i))
+      return { date: d.date, water: d.water, taken: d.taken.length, total: d.medicines.length }
+    })
+  })
+
+const toggleMedicine = (medId, date = todayIso()) =>
+  tx(
+    (db) => {
+      const user = currentUser(db)
+      const med = ownedOr404(db.medicines, medId, user.id)
+      const hit = db.med_log.find((r) => r.user_id === user.id && r.med_id === med.id && r.date === date)
+      if (hit) db.med_log = db.med_log.filter((r) => r !== hit)
+      else db.med_log.push({ id: nextId(db), user_id: user.id, med_id: med.id, date })
+      return { taken: !hit }
+    },
+    { write: true },
+  )
+
+const removeMedicine = (id) =>
+  tx(
+    (db) => {
+      const user = currentUser(db)
+      const med = ownedOr404(db.medicines, id, user.id)
+      db.medicines = db.medicines.filter((m) => m !== med)
+      db.med_log = db.med_log.filter((r) => !(r.user_id === user.id && r.med_id === med.id))
+      return { ok: true }
+    },
+    { write: true },
+  )
+
+const setWater = (date, glasses) =>
+  tx(
+    (db) => {
+      const user = currentUser(db)
+      if (!isIsoDate(date)) fail('Please enter a valid date')
+      const value = checkNumber(glasses, 'Water', { min: 0, max: 30, integer: true, inclusive: true }) ?? 0
+      const row = db.water_log.find((r) => r.user_id === user.id && r.date === date)
+      if (row) row.glasses = value
+      else db.water_log.push({ id: nextId(db), user_id: user.id, date, glasses: value })
+      return { date, water: value }
+    },
+    { write: true },
+  )
+
+// ---------- hospital bag ----------
+
+export const BAG_CATEGORIES = ['Documents', 'For mom', 'For baby', 'For partner']
+
+const DEFAULT_BAG = {
+  Documents: ['ID card (Aadhaar)', 'Hospital file & scan reports', 'Health insurance card', "Doctor's prescriptions"],
+  'For mom': [
+    '2–3 front-open nightgowns', 'Maternity pads', 'Nursing bras', 'Slippers', 'Toothbrush, soap & comb',
+    'Towel', 'Phone & charger', 'Snacks & water bottle', 'Shawl or warm clothes',
+  ],
+  'For baby': [
+    '4–5 soft cotton baby clothes', 'Swaddles / soft blankets', 'Cap, mittens & socks', 'Newborn diapers',
+    'Soft cotton cloths / wipes', 'Baby towel',
+  ],
+  'For partner': ['Change of clothes', 'Cash & cards', 'List of important phone numbers'],
+}
+
+function bagFields(b) {
+  const text = (b.text || '').trim()
+  if (!text) fail('Please enter an item')
+  return {
+    text: checkText(text, 'Item', 80),
+    category: BAG_CATEGORIES.includes(b.category) ? b.category : 'For mom',
+    packed: !!b.packed,
+  }
+}
+
+const bagOrder = (a, b) => BAG_CATEGORIES.indexOf(a.category) - BAG_CATEGORIES.indexOf(b.category) || a.id - b.id
+const bag = crud('bag_items', bagFields, bagOrder)
+
+// The first visit fills the bag with a suggested list.
+bag.list = () =>
+  tx((db) => {
+    const user = currentUser(db)
+    if (!user.bag_seeded) {
+      for (const [category, items] of Object.entries(DEFAULT_BAG))
+        for (const text of items)
+          db.bag_items.push({ id: nextId(db), user_id: user.id, text, category, packed: false, created_at: nowStamp() })
+      user.bag_seeded = true
+      db._dirty = true
+    }
+    return copy(ownRows(db, 'bag_items', user).sort(bagOrder))
+  })
+
+// ---------- baby names ----------
+
+function nameFields(b) {
+  const name = (b.name || '').trim()
+  if (!name) fail('Please enter a name')
+  return {
+    name: checkText(name, 'Name', 40),
+    gender: ['girl', 'boy'].includes(b.gender) ? b.gender : 'any',
+    meaning: checkText(b.meaning, 'Meaning', 120),
+    fav: !!b.fav,
+  }
+}
+
+const names = crud('baby_names', nameFields, (a, b) => Number(b.fav) - Number(a.fav) || byText('name')(a, b))
+
+// ---------- contractions ----------
+
+function contractionFields(b) {
+  if (!isStamp(b.start)) fail('Invalid start time')
+  if (!blank(b.end) && (!isStamp(b.end) || Date.parse(b.end) < Date.parse(b.start))) fail('Invalid end time')
+  return { start: b.start, end: blank(b.end) ? null : b.end }
+}
+
+const contractions = crud('contractions', contractionFields, sortDesc('start'))
+contractions.list = () => listFor('contractions', sortDesc('start'), 200)
+contractions.clear = () =>
+  tx(
+    (db) => {
+      const user = currentUser(db)
+      db.contractions = db.contractions.filter((r) => r.user_id !== user.id)
+      return { ok: true }
+    },
+    { write: true },
+  )
+
+// ---------- scan & lab reports ----------
+
+export const REPORT_TYPES = ['blood', 'ultrasound', 'urine', 'other']
+
+function reportFields(b) {
+  if (!isIsoDate(b.date)) fail('Please enter a valid date')
+  const values = {}
+  for (const [k, v] of Object.entries(b.values || {})) {
+    if (blank(v)) continue
+    values[k] = typeof v === 'number' || /^-?\d+(\.\d+)?$/.test(String(v)) ? Number(v) : checkText(v, k, 20)
+  }
+  const files = (Array.isArray(b.files) ? b.files : [])
+    .filter((f) => f && typeof f.file_id === 'string')
+    .map((f) => ({ file_id: f.file_id, name: String(f.name || 'file'), type: String(f.type || ''), size: Number(f.size) || 0 }))
+  return {
+    date: b.date,
+    type: REPORT_TYPES.includes(b.type) ? b.type : 'other',
+    title: checkText((b.title || '').trim(), 'Title', 80),
+    notes: checkText(b.notes, 'Notes', 1000),
+    values,
+    files,
+  }
+}
+
+const reports = crud('reports', reportFields, sortDesc('date'))
+
+// ---------- backup & restore ----------
+
+const BACKUP_APP = 'maternity-tracker'
+
+const exportData = () =>
+  tx(
+    (db) => {
+      const user = currentUser(db)
+      const data = Object.fromEntries(
+        USER_TABLES.map((t) => [t, ownRows(db, t, user).map(({ user_id: _, ...row }) => row)]),
+      )
+      user.last_backup = nowStamp()
+      return {
+        app: BACKUP_APP,
+        version: 1,
+        exported_at: new Date().toISOString(),
+        profile: Object.fromEntries(PROFILE_FIELDS.map((k) => [k, user[k] ?? null])),
+        data,
+      }
+    },
+    { write: true },
+  )
+
+// Replaces everything in the logged-in account with the backup's contents.
+const importData = (backup) =>
+  tx(
+    (db) => {
+      const user = currentUser(db)
+      if (backup?.app !== BACKUP_APP || typeof backup.data !== 'object') fail('This is not a Maternity backup file')
+
+      const medIds = new Map()
+      for (const table of USER_TABLES) {
+        db[table] = db[table].filter((r) => r.user_id !== user.id)
+        const rows = Array.isArray(backup.data[table]) ? backup.data[table] : []
+        for (const row of rows) {
+          const fresh = { ...row, id: nextId(db), user_id: user.id }
+          if (table === 'medicines') medIds.set(row.id, fresh.id)
+          db[table].push(fresh)
+        }
+      }
+      // Daily medicine ticks point at medicines, whose ids just changed.
+      db.med_log = db.med_log.filter((r) => r.user_id !== user.id || medIds.has(r.med_id))
+      for (const r of db.med_log) if (r.user_id === user.id) r.med_id = medIds.get(r.med_id)
+
+      const p = backup.profile || {}
+      for (const k of PROFILE_FIELDS) if (k in p) user[k] = p[k] ?? null
+      if (!isIsoDate(user.lmp_date)) user.lmp_date = null
+      if (!user.name) user.name = user.username
+      user.bag_seeded = true
+      return publicUser(user)
+    },
+    { write: true },
+  )
+
 export const api = {
   register,
   login,
@@ -417,4 +708,37 @@ export const api = {
       { write: true },
     ),
   deleteKicks: (id) => deleteFrom('kick_sessions', id),
+
+  daily,
+  dailyHistory,
+  setWater,
+  toggleMedicine,
+  medicines: medicines.list,
+  addMedicine: medicines.add,
+  updateMedicine: medicines.update,
+  deleteMedicine: removeMedicine,
+
+  bag: bag.list,
+  addBagItem: bag.add,
+  updateBagItem: bag.update,
+  deleteBagItem: bag.remove,
+
+  names: names.list,
+  addName: names.add,
+  updateName: names.update,
+  deleteName: names.remove,
+
+  contractions: contractions.list,
+  addContraction: contractions.add,
+  updateContraction: contractions.update,
+  deleteContraction: contractions.remove,
+  clearContractions: contractions.clear,
+
+  reports: reports.list,
+  addReport: reports.add,
+  updateReport: reports.update,
+  deleteReport: reports.remove,
+
+  exportData,
+  importData,
 }

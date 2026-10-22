@@ -9,6 +9,12 @@ import HealthPage from './pages/HealthPage.jsx'
 import AppointmentsPage from './pages/AppointmentsPage.jsx'
 import KickCounterPage from './pages/KickCounterPage.jsx'
 import ProfilePage from './pages/ProfilePage.jsx'
+import DailyPage from './pages/DailyPage.jsx'
+import ContractionPage from './pages/ContractionPage.jsx'
+import BagPage from './pages/BagPage.jsx'
+import NamesPage from './pages/NamesPage.jsx'
+import ReportsPage from './pages/ReportsPage.jsx'
+import BackupPage from './pages/BackupPage.jsx'
 
 function Splash() {
   return (
@@ -51,6 +57,12 @@ export default function App() {
         <Route path="/visits" element={<AppointmentsPage />} />
         <Route path="/kicks" element={<KickCounterPage />} />
         <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/daily" element={<DailyPage />} />
+        <Route path="/contractions" element={<ContractionPage />} />
+        <Route path="/bag" element={<BagPage />} />
+        <Route path="/names" element={<NamesPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/backup" element={<BackupPage />} />
       </Route>
       <Route path="/setup" element={<SetupPage edit />} />
       <Route path="*" element={<Navigate to="/" replace />} />

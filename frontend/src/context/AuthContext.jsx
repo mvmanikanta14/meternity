@@ -46,8 +46,10 @@ export function AuthProvider({ children }) {
     return fresh
   }, [])
 
+  const refresh = useCallback(() => api.me().then(setUser), [])
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, updateProfile }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, updateProfile, refresh }}>
       {children}
     </AuthContext.Provider>
   )

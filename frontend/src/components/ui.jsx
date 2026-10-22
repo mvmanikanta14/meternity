@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import Icon from './Icon.jsx'
 
@@ -33,7 +34,8 @@ export function Sheet({ open, title, onClose, children }) {
   }, [open, onClose])
 
   if (!open) return null
-  return (
+  // Rendered on <body> so it always sits above the tab bar, not inside the animated page.
+  return createPortal(
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         <div className="sheet-handle" />
@@ -45,7 +47,8 @@ export function Sheet({ open, title, onClose, children }) {
         </div>
         <div className="sheet-body">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

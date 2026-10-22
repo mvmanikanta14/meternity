@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useEffect } from 'react'
 import Icon from './Icon.jsx'
+import Reminders from './Reminders.jsx'
 
 const TABS = [
   { to: '/', icon: 'home', label: 'Home' },
@@ -18,6 +19,7 @@ export default function Layout() {
 
   return (
     <div className="app">
+      <Reminders />
       <main className="content">
         <Outlet />
       </main>

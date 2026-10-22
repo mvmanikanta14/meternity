@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api.js'
 import Icon from '../components/Icon.jsx'
 import { Empty, ErrorBox, Loader, PageHeader, Sheet } from '../components/ui.jsx'
@@ -73,7 +73,12 @@ export default function HealthPage() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const load = useCallback(() => api.logs().then(setLogs).catch((e) => setError(e.message)), [])
+  const [trackedWater, setTrackedWater] = useState(0)
+
+  const load = useCallback(() => {
+    api.logs().then(setLogs).catch((e) => setError(e.message))
+    api.daily(todayISO()).then((d) => setTrackedWater(d.water)).catch(() => {})
+  }, [])
   useEffect(() => {
     load()
   }, [load])
@@ -129,7 +134,8 @@ export default function HealthPage() {
   const latest = logs[0]
   const latestWeight = logs.find((l) => l.weight)
   const latestBp = logs.find((l) => l.systolic && l.diastolic)
-  const todayWater = logs.filter((l) => l.log_date === todayISO()).reduce((s, l) => s + (l.water_glasses || 0), 0)
+  const todayWater =
+    trackedWater + logs.filter((l) => l.log_date === todayISO()).reduce((s, l) => s + (l.water_glasses || 0), 0)
 
   return (
     <div className="page">
@@ -154,11 +160,11 @@ export default function HealthPage() {
           <strong>{latestBp ? `${latestBp.systolic}/${latestBp.diastolic}` : '—'}</strong>
           <span>Blood pressure</span>
         </div>
-        <div className="metric m-blue">
+        <Link to="/daily" className="metric m-blue">
           <Icon name="drop" />
           <strong>{todayWater} / 10</strong>
-          <span>Water today</span>
-        </div>
+          <span>Water today ›</span>
+        </Link>
         <div className="metric m-peach">
           <span className="metric-emoji">{latest?.mood ? moodEmoji(latest.mood) : '🙂'}</span>
           <strong>{latest?.mood ? MOODS.find((m) => m.key === latest.mood)?.label : '—'}</strong>

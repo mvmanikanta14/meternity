@@ -78,6 +78,15 @@ export default function ProfilePage() {
         <Link to="/kicks" className="menu-item">
           <span>👣</span> Kick counter <Icon name="chevron" size={18} className="chev" />
         </Link>
+        <Link to="/daily" className="menu-item">
+          <span>💊</span> Medicines & reminders <Icon name="chevron" size={18} className="chev" />
+        </Link>
+        <Link to="/reports" className="menu-item">
+          <span>🩻</span> Scan & lab reports <Icon name="chevron" size={18} className="chev" />
+        </Link>
+        <Link to="/backup" className="menu-item">
+          <span>💾</span> Backup & restore <Icon name="chevron" size={18} className="chev" />
+        </Link>
         <button className="menu-item danger" onClick={logout}>
           <Icon name="logout" size={20} /> Log out
         </button>

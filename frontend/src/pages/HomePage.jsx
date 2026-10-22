@@ -4,16 +4,27 @@ import { api } from '../api.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import Icon from '../components/Icon.jsx'
 import { ErrorBox, Loader, ProgressRing } from '../components/ui.jsx'
-import { TRIMESTER_LABEL, daysUntil, fmtDate, fmtWeekday, greeting, todayISO } from '../utils.js'
+import { TRIMESTER_LABEL, WATER_GOAL, daysUntil, fmtDate, fmtWeekday, greeting, todayISO } from '../utils.js'
+
+const TOOLS = [
+  { to: '/daily', emoji: '💊', label: 'Medicines & water' },
+  { to: '/reports', emoji: '🩻', label: 'Scan reports' },
+  { to: '/contractions', emoji: '⏱️', label: 'Contractions' },
+  { to: '/bag', emoji: '🎒', label: 'Hospital bag' },
+  { to: '/names', emoji: '📝', label: 'Baby names' },
+  { to: '/backup', emoji: '💾', label: 'Backup' },
+]
 
 export default function HomePage() {
   const { user } = useAuth()
   const [status, setStatus] = useState(null)
   const [nextVisit, setNextVisit] = useState(null)
+  const [today, setToday] = useState(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
     api.status().then(setStatus).catch((e) => setError(e.message))
+    api.daily(todayISO()).then(setToday).catch(() => {})
     api
       .appointments()
       .then((list) => setNextVisit(list.find((a) => !a.done && a.date >= todayISO()) || null))
@@ -114,6 +125,36 @@ export default function HomePage() {
             <Icon name="calendar" size={26} />
             <span>Add visit</span>
           </Link>
+        </div>
+
+        {today && (
+          <Link to="/daily" className="card today-card">
+            <div className="today-item">
+              <span className="today-emoji">💊</span>
+              <div>
+                <strong>{today.medicines.length ? `${today.taken.length}/${today.medicines.length}` : 'Add'}</strong>
+                <span>medicines</span>
+              </div>
+            </div>
+            <div className="today-item">
+              <span className="today-emoji">💧</span>
+              <div>
+                <strong>{today.water}/{WATER_GOAL}</strong>
+                <span>glasses</span>
+              </div>
+            </div>
+            <Icon name="chevron" className="chev" />
+          </Link>
+        )}
+
+        <h3 className="section-title">All tools</h3>
+        <div className="tools">
+          {TOOLS.map((t) => (
+            <Link key={t.to} to={t.to} className="tool">
+              <span className="tool-emoji">{t.emoji}</span>
+              <span>{t.label}</span>
+            </Link>
+          ))}
         </div>
 
         <h3 className="section-title">Next appointment</h3>
