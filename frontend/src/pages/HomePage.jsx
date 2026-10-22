@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../api.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import Icon from '../components/Icon.jsx'
+import MoodCheck from '../components/MoodCheck.jsx'
 import { ErrorBox, Loader, ProgressRing } from '../components/ui.jsx'
 import { TRIMESTER_LABEL, WATER_GOAL, daysUntil, fmtDate, fmtWeekday, greeting, todayISO } from '../utils.js'
 
@@ -87,6 +88,8 @@ export default function HomePage() {
             You've passed your due date. Please stay in close touch with your doctor. 💗
           </div>
         )}
+
+        <MoodCheck week={status.week} />
 
         <Link to="/weeks" state={{ week: status.week }} className="card baby-card">
           <div className="baby-emoji">{w.emoji}</div>

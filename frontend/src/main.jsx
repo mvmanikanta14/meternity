@@ -5,6 +5,10 @@ import App from './App.jsx'
 import { AuthProvider } from './context/AuthContext.jsx'
 import './styles.css'
 
+if ('serviceWorker' in navigator && window.isSecureContext) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {})
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>

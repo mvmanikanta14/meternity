@@ -4,14 +4,15 @@ import { useAuth } from '../context/AuthContext.jsx'
 import Icon from '../components/Icon.jsx'
 import { Empty, ErrorBox, Loader, PageHeader, Sheet } from '../components/ui.jsx'
 import { deleteFile, getFile, newFileId, putFile, shrinkImage } from '../fileStore.js'
-import { METRICS, REPORT_TYPE_LABEL, analyse, metricsFor } from '../reportRanges.js'
+import { METRICS, REPORT_TYPE_LABEL, analyse, metricByKey, metricsFor } from '../reportRanges.js'
+import { extractText, parseReport } from '../reportScan.js'
 import { fmtDate, fmtShort, fmtSize, todayISO, weekOn } from '../utils.js'
 
 const LEVEL_CHIP = { ok: 'chip-ok', low: 'chip-warn', high: 'chip-warn', info: '' }
 const LEVEL_LABEL = { ok: 'Normal', low: 'Low', high: 'High', info: '' }
 const TREND_KEYS = ['hb', 'fbs', 'ogtt', 'tsh', 'efw']
 
-const emptyForm = () => ({ type: 'blood', title: '', date: todayISO(), notes: '', values: {}, files: [], pending: [] })
+const emptyForm = () => ({ type: 'blood', title: '', date: todayISO(), notes: '', values: {}, files: [], pending: [], auto: [] })
 
 function useFileUrl(fileId) {
   const [url, setUrl] = useState(null)
@@ -82,7 +83,10 @@ export default function ReportsPage() {
   const [form, setForm] = useState(emptyForm)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [scan, setScan] = useState(null)
   const fileInput = useRef(null)
+  const formRef = useRef(form)
+  formRef.current = form
 
   const load = useCallback(() => api.reports().then(setReports).catch((e) => setError(e.message)), [])
   useEffect(() => {
@@ -101,23 +105,82 @@ export default function ReportsPage() {
   const openAdd = () => {
     setForm(emptyForm())
     setError('')
+    setScan(null)
     setEditing('new')
   }
 
   const openEdit = (r) => {
-    setForm({ type: r.type, title: r.title || '', date: r.date, notes: r.notes || '', values: { ...r.values }, files: [...r.files], pending: [] })
+    setForm({ type: r.type, title: r.title || '', date: r.date, notes: r.notes || '', values: { ...r.values }, files: [...r.files], pending: [], auto: [] })
     setError('')
+    setScan(null)
     setViewing(null)
     setEditing(r)
+  }
+
+  // Reads the files and fills in any values the person hasn't typed yet.
+  const autoFill = async (files) => {
+    if (!files.length) return
+    setScan({ busy: true, progress: 0 })
+    try {
+      const found = { values: {}, type: null, date: null }
+      for (const [i, file] of files.entries()) {
+        const text = await extractText(file, (p) => setScan({ busy: true, progress: (i + p) / files.length }))
+        const r = parseReport(text)
+        found.values = { ...r.values, ...found.values }
+        found.type ??= r.type
+        found.date ??= r.date
+      }
+
+      const f = formRef.current
+      const values = { ...f.values }
+      const filled = []
+      for (const [k, v] of Object.entries(found.values)) {
+        if (values[k] === undefined || values[k] === '') {
+          values[k] = String(v)
+          filled.push(k)
+        }
+      }
+      const typed = Object.keys(f.values).filter((k) => f.values[k] !== '' && !f.auto.includes(k))
+      let type = f.type
+      if (found.type && found.type !== f.type)
+        type = typed.some((k) => metricByKey[k]?.type !== found.type) ? 'other' : found.type
+      if (filled.some((k) => type !== 'other' && metricByKey[k].type !== type)) type = 'other'
+      const date = found.date && found.date <= todayISO() && f.date === todayISO() ? found.date : f.date
+
+      setForm({ ...f, values, type, date, auto: [...new Set([...f.auto, ...filled])] })
+      setScan({
+        busy: false,
+        ok: filled.length > 0,
+        message: filled.length
+          ? `✨ Filled ${filled.length} value${filled.length > 1 ? 's' : ''} from the report — please check them.`
+          : Object.keys(found.values).length
+            ? 'Values found in the report are already filled in.'
+            : "Couldn't find values automatically — please type them in. A clear, straight, well-lit photo works best.",
+      })
+    } catch {
+      setScan({ busy: false, ok: false, message: 'Could not read this file. Check your internet (needed the first time) or type the values in.' })
+    }
   }
 
   const pickFiles = (e) => {
     const picked = Array.from(e.target.files || [])
     e.target.value = ''
     setForm((f) => ({ ...f, pending: [...f.pending, ...picked] }))
+    autoFill(picked)
   }
 
-  const setValue = (key, v) => setForm((f) => ({ ...f, values: { ...f.values, [key]: v } }))
+  const rescan = async () => {
+    const saved = await Promise.all(
+      form.files.map(async (f) => {
+        const blob = await getFile(f.file_id).catch(() => null)
+        return blob && new File([blob], f.name, { type: f.type || blob.type })
+      }),
+    )
+    autoFill([...saved.filter(Boolean), ...form.pending])
+  }
+
+  const setValue = (key, v) =>
+    setForm((f) => ({ ...f, values: { ...f.values, [key]: v }, auto: f.auto.filter((k) => k !== key) }))
 
   const submit = async (e) => {
     e.preventDefault()
@@ -353,14 +416,34 @@ export default function ReportsPage() {
           </div>
           <input ref={fileInput} type="file" accept="image/*,application/pdf" multiple hidden onChange={pickFiles} />
 
+          {scan?.busy ? (
+            <div className="scan-box">
+              <div className="spinner spinner-sm" />
+              <div className="grow">
+                <strong className="small">Reading your report… {Math.round(scan.progress * 100)}%</strong>
+                <div className="bar bar-violet"><div style={{ width: `${Math.max(4, scan.progress * 100)}%` }} /></div>
+              </div>
+            </div>
+          ) : (
+            scan?.message && <div className={`scan-box ${scan.ok ? 'scan-ok' : ''}`}><p className="small">{scan.message}</p></div>
+          )}
+          {!scan?.busy && form.files.length + form.pending.length > 0 && (
+            <button type="button" className="btn btn-ghost btn-sm" onClick={rescan}>
+              <Icon name="sparkle" size={16} /> Auto-fill from report
+            </button>
+          )}
+
           <p className="field-label">Values from the report (optional)</p>
           <div className="metric-inputs">
             {metricsFor(form.type).map((m) => {
               const v = form.values[m.key] ?? ''
               const result = v !== '' ? analyse(m.key, m.options ? v : Number(v), week(form.date)) : null
               return (
-                <label className="field" key={m.key}>
-                  <span>{m.label}{m.unit ? ` (${m.unit})` : ''}</span>
+                <label className={`field ${form.auto.includes(m.key) ? 'field-auto' : ''}`} key={m.key}>
+                  <span>
+                    {m.label}{m.unit ? ` (${m.unit})` : ''}
+                    {form.auto.includes(m.key) && <em className="auto-tag">auto</em>}
+                  </span>
                   {m.options ? (
                     <select value={v} onChange={(e) => setValue(m.key, e.target.value)}>
                       <option value="">—</option>
@@ -384,7 +467,7 @@ export default function ReportsPage() {
             <textarea rows="3" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="What the doctor said…" />
           </label>
           <ErrorBox message={error} />
-          <button className="btn btn-primary btn-block" disabled={busy}>{busy ? 'Saving…' : 'Save report'}</button>
+          <button className="btn btn-primary btn-block" disabled={busy || scan?.busy}>{busy ? 'Saving…' : 'Save report'}</button>
         </form>
       </Sheet>
     </div>

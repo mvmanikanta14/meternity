@@ -632,6 +632,22 @@ input, textarea, select { font: inherit; color: inherit; }
 .metric-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
 .metric-inputs .field > span { min-height: 2.4em; display: flex; align-items: flex-end; line-height: 1.2; }
 
+.scan-box {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px;
+  background: var(--violet-50); color: var(--ink);
+}
+.scan-box .bar { margin-top: 6px; }
+.scan-ok { background: var(--green-50); }
+.scan-ok p { color: var(--green); font-weight: 700; }
+.bar-violet { background: #e4dcff; }
+.bar-violet div { background: linear-gradient(90deg, #b9a4ff, var(--violet)); }
+.spinner-sm { width: 22px; height: 22px; border-width: 3px; flex-shrink: 0; }
+.field-auto input, .field-auto select { border-color: #c9b9ff; background: #f7f4ff; }
+.auto-tag {
+  font-style: normal; font-size: 0.66rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em;
+  background: var(--violet); color: #fff; border-radius: 6px; padding: 1px 6px; margin-left: 6px;
+}
+
 /* ---------- backup ---------- */
 .backup-card { display: flex; gap: 14px; align-items: flex-start; }
 .backup-card h3 { font-size: 1.05rem; margin-bottom: 4px; }
@@ -641,6 +657,68 @@ input, textarea, select { font: inherit; color: inherit; }
 }
 .backup-icon-violet { background: var(--violet-50); color: var(--violet); }
 
+/* ---------- mood check + partner ---------- */
+.mood-check { display: flex; flex-direction: column; gap: 10px; background: linear-gradient(135deg, #fff, #fff0f6); }
+.mood-check .card-title { margin: 0; flex-wrap: wrap; }
+.mood-input { display: flex; gap: 10px; align-items: stretch; }
+.mood-input textarea {
+  flex: 1; min-width: 0; border: 1.5px solid var(--line); background: #fffafb; border-radius: 14px;
+  padding: 11px 13px; font-size: 0.98rem; resize: none; outline: none;
+}
+.mood-input textarea:focus { border-color: var(--pink); box-shadow: 0 0 0 4px var(--pink-100); background: #fff; }
+.mic-btn {
+  width: 56px; flex-shrink: 0; border-radius: 16px; font-size: 1.5rem; color: #fff;
+  background: linear-gradient(145deg, #f58bb0, var(--pink-600)); box-shadow: 0 10px 20px -10px var(--pink-600);
+}
+.mic-btn.on { background: var(--red); font-size: 1.1rem; animation: micPulse 1.2s ease-in-out infinite; }
+@keyframes micPulse { 50% { box-shadow: 0 0 0 8px rgba(229, 72, 72, 0.18); } }
+.mood-lang { display: flex; align-items: center; gap: 6px; }
+.mood-lang button {
+  padding: 4px 12px; border-radius: 999px; font-size: 0.8rem; font-weight: 800; color: var(--ink-2);
+  border: 1.5px solid var(--line); background: #fff;
+}
+.mood-lang button.active { border-color: var(--pink); color: var(--pink-600); background: var(--pink-50); }
+.listening { margin-left: auto; color: var(--red); font-size: 0.8rem; font-weight: 800; }
+.mood-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.talk-btn {
+  display: flex; align-items: center; gap: 14px; width: 100%; min-height: 64px; padding: 10px 18px;
+  border-radius: 20px; color: #fff; font-weight: 800; font-size: 1.02rem; text-align: left;
+  background: linear-gradient(135deg, #f27aa0, var(--pink-600)); box-shadow: 0 12px 24px -12px var(--pink-600);
+  transition: transform 0.15s;
+}
+.talk-btn:active { transform: scale(0.98); }
+.talk-btn.on { background: linear-gradient(135deg, #f26b6b, var(--red)); animation: micPulse 1.2s ease-in-out infinite; }
+.talk-icon {
+  width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,.25); flex-shrink: 0;
+  display: grid; place-items: center; font-size: 1.35rem;
+}
+.mood-type { display: flex; gap: 8px; }
+.mood-type input {
+  flex: 1; min-width: 0; border: 1.5px solid var(--line); background: #fffafb; border-radius: 14px;
+  padding: 0 13px; height: 42px; font-size: 0.92rem; outline: none;
+}
+.mood-type input:focus { border-color: var(--pink); background: #fff; }
+.mood-type .icon-btn { width: 42px; height: 42px; font-size: 1.1rem; }
+.mood-type .icon-btn:disabled { opacity: 0.45; }
+.mood-result { display: flex; flex-direction: column; gap: 10px; }
+.mood-result-head { display: flex; gap: 12px; align-items: center; }
+.mood-result-emoji {
+  width: 52px; height: 52px; border-radius: 16px; background: var(--pink-50); font-size: 1.8rem;
+  display: grid; place-items: center; flex-shrink: 0;
+}
+.link { color: var(--pink-600); font-weight: 700; text-decoration: underline; }
+.steps { margin: 0; padding-left: 20px; color: var(--ink-2); }
+.steps li { margin: 4px 0; }
+.topic-box {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px;
+  background: var(--violet-50); border: 1.5px dashed #c9b9ff;
+}
+.topic-box code { flex: 1; min-width: 0; font-size: 0.92rem; font-weight: 700; color: var(--plum); word-break: break-all; }
+.btn-whatsapp { background: #25d366; color: #fff; box-shadow: 0 8px 18px -10px #128c4b; }
+.fine-print a { color: var(--pink-600); font-weight: 700; text-decoration: underline; }
+.toggle-row { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; font-weight: 600; color: var(--ink-2); }
+.toggle-row input { width: 20px; height: 20px; accent-color: var(--pink); }
+
 /* ---------- reminder banner ---------- */
 .reminder {
   position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 90;
@@ -648,7 +726,19 @@ input, textarea, select { font: inherit; color: inherit; }
   background: #fff; border-radius: 18px; padding: 12px 12px 12px 16px; box-shadow: var(--shadow-lg);
   border: 1.5px solid var(--pink-100); animation: dropIn 0.3s ease both;
 }
+.reminder { flex-direction: column; align-items: stretch; }
+.reminder-top { display: flex; align-items: flex-start; gap: 10px; }
+.reminder-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.reminder-alarm { border-color: var(--pink); animation: dropIn 0.3s ease both, shake 0.6s ease 0.3s 3; }
+@keyframes shake { 25% { margin-left: -4px; } 75% { margin-left: 4px; } }
 .reminder p { color: var(--ink-2); }
+.alarm-card { background: linear-gradient(135deg, #fff, var(--violet-50)); }
+.alarm-list { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+.alarm-row { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 0.92rem; }
+.alarm-time { background: var(--violet); color: #fff; border-radius: 10px; padding: 4px 8px; font-size: 0.8rem; white-space: nowrap; }
+.alarm-row .btn { white-space: nowrap; }
+.alarm-help { margin: 12px 0 0; padding-left: 18px; color: var(--ink-2); }
+.alarm-help li { margin: 3px 0; }
 .reminder-x { width: 28px; height: 28px; border-radius: 50%; color: var(--ink-3); font-size: 1.3rem; line-height: 1; }
 @keyframes dropIn { from { opacity: 0; transform: translate(-50%, -16px); } }
 

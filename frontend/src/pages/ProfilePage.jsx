@@ -48,6 +48,8 @@ export default function ProfilePage() {
     { icon: '👩‍⚕️', label: 'Doctor', value: user.doctor_name || 'Not set' },
     { icon: '🏥', label: 'Hospital', value: user.hospital || 'Not set' },
     { icon: '📞', label: 'Phone', value: user.phone || 'Not set' },
+    { icon: '💑', label: 'Husband', value: user.partner_name || 'Not set' },
+    { icon: '💬', label: "Husband's WhatsApp", value: user.partner_phone || 'Not set' },
   ]
 
   return (
@@ -77,6 +79,10 @@ export default function ProfilePage() {
         </Link>
         <Link to="/kicks" className="menu-item">
           <span>👣</span> Kick counter <Icon name="chevron" size={18} className="chev" />
+        </Link>
+        <Link to="/partner" className="menu-item">
+          <span>💑</span> Husband alerts {user.partner_topic ? '' : <span className="chip chip-soft">Set up</span>}
+          <Icon name="chevron" size={18} className="chev" />
         </Link>
         <Link to="/daily" className="menu-item">
           <span>💊</span> Medicines & reminders <Icon name="chevron" size={18} className="chev" />

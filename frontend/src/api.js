@@ -139,9 +139,12 @@ const daysBetween = (fromIso, toIso) => Math.round((isoToUtc(toIso) - isoToUtc(f
 
 const PUBLIC_USER_FIELDS = [
   'id', 'name', 'username', 'lmp_date', 'blood_group', 'doctor_name', 'hospital', 'phone',
-  'water_reminder', 'last_backup',
+  'water_reminder', 'last_backup', 'partner_name', 'partner_phone', 'partner_auto', 'partner_topic',
 ]
-const PROFILE_FIELDS = ['name', 'lmp_date', 'blood_group', 'doctor_name', 'hospital', 'phone', 'water_reminder']
+const PROFILE_FIELDS = [
+  'name', 'lmp_date', 'blood_group', 'doctor_name', 'hospital', 'phone', 'water_reminder',
+  'partner_name', 'partner_phone', 'partner_auto', 'partner_topic',
+]
 
 function publicUser(user) {
   const data = Object.fromEntries(PUBLIC_USER_FIELDS.map((k) => [k, user[k] ?? null]))
@@ -297,6 +300,13 @@ const updateMe = (body) =>
       if ('doctor_name' in body) updates.doctor_name = checkText(body.doctor_name, 'Doctor name', 80)
       if ('hospital' in body) updates.hospital = checkText(body.hospital, 'Hospital', 120)
       if ('phone' in body) updates.phone = checkText(body.phone, 'Phone', 20)
+      if ('partner_name' in body) updates.partner_name = checkText(body.partner_name, "Husband's name", 80)
+      if ('partner_phone' in body) {
+        const digits = String(body.partner_phone || '').replace(/\D/g, '')
+        if (digits && (digits.length < 10 || digits.length > 13)) fail('Please enter a valid WhatsApp number')
+        updates.partner_phone = checkText(body.partner_phone, 'WhatsApp number', 20)
+      }
+      if ('partner_auto' in body) updates.partner_auto = !!body.partner_auto
       if ('water_reminder' in body)
         updates.water_reminder = checkNumber(body.water_reminder, 'Reminder', { min: 0, max: 240, integer: true, inclusive: true }) || 0
 
@@ -605,6 +615,26 @@ const reports = crud('reports', reportFields, sortDesc('date'))
 
 const BACKUP_APP = 'maternity-tracker'
 
+// ---------- husband alerts ----------
+
+// A long random ntfy topic name; only phones that know it receive her mood alerts.
+const randomTopic = () => {
+  const bytes = globalThis.crypto?.getRandomValues
+    ? crypto.getRandomValues(new Uint8Array(14))
+    : Array.from({ length: 14 }, () => Math.floor(Math.random() * 256))
+  return `maternity-${Array.from(bytes, (b) => (b % 36).toString(36)).join('')}`
+}
+
+const partnerTopic = ({ renew = false } = {}) =>
+  tx(
+    (db) => {
+      const user = currentUser(db)
+      if (!user.partner_topic || renew) user.partner_topic = randomTopic()
+      return user.partner_topic
+    },
+    { write: true },
+  )
+
 const exportData = () =>
   tx(
     (db) => {
@@ -739,6 +769,7 @@ export const api = {
   updateReport: reports.update,
   deleteReport: reports.remove,
 
+  partnerTopic,
   exportData,
   importData,
 }

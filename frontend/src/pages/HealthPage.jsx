@@ -3,7 +3,9 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api.js'
 import Icon from '../components/Icon.jsx'
 import { Empty, ErrorBox, Loader, PageHeader, Sheet } from '../components/ui.jsx'
-import { MOODS, SYMPTOMS, fmtShort, fmtWeekday, moodEmoji, todayISO } from '../utils.js'
+import { useAuth } from '../context/AuthContext.jsx'
+import { notifyPartner, partnerAlert, partnerMessage, whatsappUrl } from '../partner.js'
+import { MOODS, SYMPTOMS, fmtShort, fmtWeekday, moodEmoji, todayISO, weekOn } from '../utils.js'
 
 const blank = () => ({
   log_date: todayISO(),
@@ -74,6 +76,8 @@ export default function HealthPage() {
   const [busy, setBusy] = useState(false)
 
   const [trackedWater, setTrackedWater] = useState(0)
+  const [share, setShare] = useState(null)
+  const { user } = useAuth()
 
   const load = useCallback(() => {
     api.logs().then(setLogs).catch((e) => setError(e.message))
@@ -113,6 +117,22 @@ export default function HealthPage() {
         mood: form.mood || null,
         notes: form.notes || null,
       })
+      if (form.mood) {
+        const message = partnerMessage({
+          name: user.name.split(' ')[0],
+          mood: form.mood,
+          text: form.notes,
+          week: weekOn(user.lmp_date, form.log_date),
+        })
+        const url = user.partner_phone ? whatsappUrl(user.partner_phone, message) : null
+        const sent = user.partner_topic
+          ? await notifyPartner(
+              user.partner_topic,
+              partnerAlert({ name: user.name.split(' ')[0], mood: form.mood, text: form.notes, week: weekOn(user.lmp_date, form.log_date) }),
+            )
+          : false
+        setShare({ mood: form.mood, url, sent })
+      }
       setOpen(false)
       setForm(blank())
       load()
@@ -148,6 +168,21 @@ export default function HealthPage() {
           </button>
         }
       />
+
+      {share && (
+        <div className="card mood-check">
+          <h3 className="card-title">{moodEmoji(share.mood)} Mood saved</h3>
+          {share.sent && <p className="small ok-text">✓ {user.partner_name || 'Husband'} ki alert pampanu</p>}
+          <div className="mood-actions">
+            {share.url && (
+              <a className="btn btn-whatsapp btn-sm" href={share.url} target="_blank" rel="noreferrer" onClick={() => setShare(null)}>
+                💬 Also WhatsApp
+              </a>
+            )}
+            <button className="btn btn-ghost btn-sm" onClick={() => setShare(null)}>OK</button>
+          </div>
+        </div>
+      )}
 
       <div className="metric-grid">
         <div className="metric m-pink">

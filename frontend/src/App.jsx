@@ -15,6 +15,7 @@ import BagPage from './pages/BagPage.jsx'
 import NamesPage from './pages/NamesPage.jsx'
 import ReportsPage from './pages/ReportsPage.jsx'
 import BackupPage from './pages/BackupPage.jsx'
+import PartnerPage from './pages/PartnerPage.jsx'
 
 function Splash() {
   return (
@@ -63,6 +64,7 @@ export default function App() {
         <Route path="/names" element={<NamesPage />} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/backup" element={<BackupPage />} />
+        <Route path="/partner" element={<PartnerPage />} />
       </Route>
       <Route path="/setup" element={<SetupPage edit />} />
       <Route path="*" element={<Navigate to="/" replace />} />
