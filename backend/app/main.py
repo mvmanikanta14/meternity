@@ -24,6 +24,21 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup() -> None:
     init_db()
+    seed_default_user()
+
+
+# Built-in account so the app can be logged into right after a fresh deploy.
+DEFAULT_USER = {"name": "Prasu", "username": "prasu", "password": "123456"}
+
+
+def seed_default_user() -> None:
+    with get_conn() as conn:
+        if conn.execute("SELECT 1 FROM users WHERE username = ?", (DEFAULT_USER["username"],)).fetchone():
+            return
+        conn.execute(
+            "INSERT INTO users (name, username, password_hash) VALUES (?, ?, ?)",
+            (DEFAULT_USER["name"], DEFAULT_USER["username"], hash_password(DEFAULT_USER["password"])),
+        )
 
 
 # ---------- helpers ----------
