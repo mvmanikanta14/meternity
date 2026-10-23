@@ -103,29 +103,36 @@ export function googleCalendarUrl(m, untilIso) {
   return `https://calendar.google.com/calendar/render?${params}`
 }
 
-// One calendar file with every timed medicine, each repeating daily with an alert at the time.
-export function medicinesIcs(meds, untilIso) {
+// One calendar file with every timed medicine and water time, each repeating daily with an
+// alert at that time.
+export function alarmsIcs({ meds = [], water = [], untilIso }) {
   const stamp = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z'
-  const events = meds
-    .filter((m) => m.time)
-    .map((m) => {
-      const first = startDay(m.time)
-      return [
-        'BEGIN:VEVENT',
-        `UID:maternity-med-${m.id}-${m.time.replace(':', '')}@maternity`,
-        `DTSTAMP:${stamp}`,
-        `DTSTART:${compact(first)}T${m.time.replace(':', '')}00`,
-        `DTEND:${endStamp(first, m.time)}`,
-        `RRULE:FREQ=DAILY${untilIso ? `;UNTIL=${compact(untilIso)}T235959` : ''}`,
-        `SUMMARY:${icsText(medTitle(m))}`,
-        'DESCRIPTION:Medicine reminder from the Maternity app.',
-        'BEGIN:VALARM',
-        'ACTION:DISPLAY',
-        `DESCRIPTION:${icsText(medTitle(m))}`,
-        'TRIGGER:PT0M',
-        'END:VALARM',
-        'END:VEVENT',
-      ].join('\r\n')
-    })
+  const event = (uid, time, title, description) => {
+    const first = startDay(time)
+    return [
+      'BEGIN:VEVENT',
+      `UID:${uid}@maternity`,
+      `DTSTAMP:${stamp}`,
+      `DTSTART:${compact(first)}T${time.replace(':', '')}00`,
+      `DTEND:${endStamp(first, time)}`,
+      `RRULE:FREQ=DAILY${untilIso ? `;UNTIL=${compact(untilIso)}T235959` : ''}`,
+      `SUMMARY:${icsText(title)}`,
+      `DESCRIPTION:${icsText(description)}`,
+      'BEGIN:VALARM',
+      'ACTION:DISPLAY',
+      `DESCRIPTION:${icsText(title)}`,
+      'TRIGGER:PT0M',
+      'END:VALARM',
+      'END:VEVENT',
+    ].join('\r\n')
+  }
+  const events = [
+    ...meds
+      .filter((m) => m.time)
+      .map((m) => event(`maternity-med-${m.id}-${m.time.replace(':', '')}`, m.time, medTitle(m), 'Medicine reminder from the Maternity app.')),
+    ...water.map((t) =>
+      event(`maternity-water-${t.replace(':', '')}`, t, '💧 Neellu taagandi — drink a glass of water', 'Water reminder from the Maternity app.'),
+    ),
+  ]
   return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Maternity//Medicine reminders//EN', 'CALSCALE:GREGORIAN', ...events, 'END:VCALENDAR', ''].join('\r\n')
 }

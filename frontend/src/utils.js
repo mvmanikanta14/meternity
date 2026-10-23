@@ -21,6 +21,20 @@ export const weekOn = (lmp, iso) =>
 
 export const WATER_GOAL = 10
 
+// Clock times ("HH:MM") for water alarms: every `every` minutes from `from` o'clock up to `to` o'clock.
+export function waterSlots(user) {
+  const every = user.water_reminder || 0
+  if (!every) return []
+  const from = user.water_from ?? 8
+  const to = user.water_to ?? 21
+  const slots = []
+  for (let min = from * 60; min <= to * 60; min += every)
+    slots.push(`${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`)
+  return slots
+}
+
+export const hourLabel = (h) => new Date(2000, 0, 1, h).toLocaleTimeString('en-IN', { hour: 'numeric' })
+
 export const fmtTime = (stamp) => new Date(stamp).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })
 
 export const fmtTime24 = (hhmm) => {

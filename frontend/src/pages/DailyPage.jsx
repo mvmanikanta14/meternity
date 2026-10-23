@@ -3,8 +3,8 @@ import { api } from '../api.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import Icon from '../components/Icon.jsx'
 import { Empty, ErrorBox, Loader, PageHeader, Sheet } from '../components/ui.jsx'
-import { googleCalendarUrl, medicinesIcs } from '../alarm.js'
-import { WATER_GOAL, fmtDate, fmtTime24, todayISO } from '../utils.js'
+import { alarmsIcs, googleCalendarUrl } from '../alarm.js'
+import { WATER_GOAL, fmtDate, fmtTime24, hourLabel, todayISO, waterSlots } from '../utils.js'
 
 // Calendar alarms run until 3 months after the due date (iron / calcium often continue after birth).
 const alarmsUntil = (dueIso) => {
@@ -25,10 +25,12 @@ const SUGGESTED = [
 
 const WATER_REMINDERS = [
   { value: 0, label: 'Off' },
+  { value: 30, label: '30 min' },
   { value: 60, label: '1 hr' },
   { value: 120, label: '2 hrs' },
-  { value: 180, label: '3 hrs' },
 ]
+
+const HOURS = Array.from({ length: 24 }, (_, h) => h)
 
 const emptyMed = () => ({ name: '', dose: '', time: '' })
 
@@ -100,8 +102,8 @@ export default function DailyPage() {
   }
 
   const saveIcs = async () => {
-    const text = medicinesIcs(day.medicines, alarmsUntil(user.due_date))
-    const file = new File([text], 'medicine-alarms.ics', { type: 'text/calendar' })
+    const text = alarmsIcs({ meds: day.medicines, water: waterSlots(user), untilIso: alarmsUntil(user.due_date) })
+    const file = new File([text], 'maternity-alarms.ics', { type: 'text/calendar' })
     const download = () => {
       const url = URL.createObjectURL(file)
       Object.assign(document.createElement('a'), { href: url, download: file.name }).click()
@@ -121,6 +123,8 @@ export default function DailyPage() {
   const waterPct = Math.min(1, day.water / WATER_GOAL)
   const doneAll = day.medicines.length > 0 && day.taken.length === day.medicines.length
   const timed = day.medicines.filter((m) => m.time)
+  const slots = waterSlots(user)
+  const setWaterAlarm = (changes) => updateProfile(changes).catch((e) => setError(e.message))
   const unused = SUGGESTED.filter((s) => !day.medicines.some((m) => m.name.toLowerCase() === s.name.toLowerCase()))
 
   return (
@@ -162,6 +166,39 @@ export default function DailyPage() {
         </div>
         <div className="bar bar-blue"><div style={{ width: `${waterPct * 100}%` }} /></div>
         {day.water >= WATER_GOAL && <p className="small ok-text">🎉 Goal reached — well done!</p>}
+
+        <div className="water-alarm">
+          <p className="field-label" style={{ margin: 0 }}>⏰ Water alarm — every</p>
+          <div className="segmented segmented-blue">
+            {WATER_REMINDERS.map((r) => (
+              <button
+                key={r.value}
+                className={(user.water_reminder || 0) === r.value ? 'active' : ''}
+                onClick={() => setWaterAlarm({ water_reminder: r.value })}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+          {slots.length > 0 && (
+            <div className="water-hours">
+              <label>
+                From
+                <select value={user.water_from ?? 8} onChange={(e) => setWaterAlarm({ water_from: Number(e.target.value) })}>
+                  {HOURS.slice(0, 23).map((h) => <option key={h} value={h}>{hourLabel(h)}</option>)}
+                </select>
+              </label>
+              <label>
+                to
+                <select value={user.water_to ?? 21} onChange={(e) => setWaterAlarm({ water_to: Number(e.target.value) })}>
+                  {HOURS.slice(1).map((h) => <option key={h} value={h}>{hourLabel(h)}</option>)}
+                </select>
+              </label>
+              <span className="muted small">{slots.length} alarms/day</span>
+            </div>
+          )}
+        </div>
+        <ErrorBox message={editing ? '' : error} />
       </div>
 
       <h3 className="section-title">
@@ -210,14 +247,23 @@ export default function DailyPage() {
       <div className="card alarm-card">
         <h3 className="card-title">⏰ Phone alarms</h3>
         <p className="small">
-          Rings on your phone every day at the medicine time — <b>even when this app is closed</b>. Add your medicine
-          times to your phone's calendar once:
+          Rings on your phone every day at medicine and water times — <b>even when this app is closed</b>. Add them to
+          your phone's calendar once:
         </p>
-        {timed.length === 0 ? (
-          <p className="small muted" style={{ marginTop: 10 }}>Set a reminder time on a medicine first (tap it above).</p>
+        {timed.length === 0 && slots.length === 0 ? (
+          <p className="small muted" style={{ marginTop: 10 }}>Set a medicine time or turn on the water alarm first.</p>
         ) : (
           <>
             <div className="alarm-list">
+              {slots.length > 0 && (
+                <div className="alarm-row">
+                  <span className="alarm-time alarm-time-blue">💧 {slots.length}×</span>
+                  <span className="grow">
+                    Water · {fmtTime24(slots[0])} – {fmtTime24(slots[slots.length - 1])}
+                  </span>
+                  <span className="muted small">in .ics below</span>
+                </div>
+              )}
               {timed.map((m) => (
                 <div className="alarm-row" key={m.id}>
                   <span className="alarm-time">{fmtTime24(m.time)}</span>
@@ -232,7 +278,7 @@ export default function DailyPage() {
               <Icon name="calendar" size={16} /> Add all to phone calendar (.ics)
             </button>
             <ul className="alarm-help small">
-              <li><b>Android:</b> tap <b>+ Google Calendar</b> for each medicine and press Save.</li>
+              <li><b>Android:</b> tap <b>+ Google Calendar</b> for each medicine and press Save. For water, tap <b>Add all</b> and open the file with your Calendar app.</li>
               <li><b>iPhone:</b> tap <b>Add all to phone calendar</b>, open the file, then <b>Add All</b>.</li>
               <li>For a louder ring, set your calendar app's notification sound to an alarm tone.</li>
               <li>If you change a medicine time, add it again and delete the old calendar event.</li>
@@ -244,20 +290,9 @@ export default function DailyPage() {
       <div className="card">
         <h3 className="card-title"><Icon name="bell" size={18} /> In-app reminders</h3>
         <p className="small">
-          While the app is open, an alarm sound rings at each medicine time (with Snooze / Taken). Water reminders come
-          every:
+          While the app is open, an alarm sound rings at each medicine and water time, with Snooze and Taken / +1 glass
+          buttons.
         </p>
-        <div className="segmented" style={{ marginTop: 10 }}>
-          {WATER_REMINDERS.map((r) => (
-            <button
-              key={r.value}
-              className={(user.water_reminder || 0) === r.value ? 'active' : ''}
-              onClick={() => updateProfile({ water_reminder: r.value })}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
         {perm === 'default' && (
           <button className="btn btn-ghost btn-sm btn-block" style={{ marginTop: 12 }} onClick={askPermission}>
             Allow notifications

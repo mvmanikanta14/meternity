@@ -45,7 +45,8 @@ Open http://localhost:5173.
 
 ### Default login
 
-The account **prasu / 123456** is created in each browser the first time the app opens.
+These accounts are created in each browser the first time the app opens, all with password **123456**:
+`prasu`, `patient1`, `patient2`, `patient3`, `patient4`, `patient5`.
 
 ## Deploy to Vercel
 

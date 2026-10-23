@@ -737,6 +737,19 @@ input, textarea, select { font: inherit; color: inherit; }
 .alarm-row { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 0.92rem; }
 .alarm-time { background: var(--violet); color: #fff; border-radius: 10px; padding: 4px 8px; font-size: 0.8rem; white-space: nowrap; }
 .alarm-row .btn { white-space: nowrap; }
+.alarm-time-blue { background: var(--blue); }
+.water-alarm { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #d5ecfb; padding-top: 12px; }
+.segmented-blue { background: #d9eefc; }
+.segmented-blue button { height: 36px; font-size: 0.85rem; }
+.segmented-blue button.active { color: var(--blue); }
+.water-hours { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 0.85rem; font-weight: 700; color: var(--ink-2); }
+.water-hours label { display: flex; align-items: center; gap: 6px; }
+.water-hours select {
+  border: 1.5px solid #c4e2f6; background: #fff; border-radius: 10px; padding: 6px 8px; font-weight: 700; color: var(--ink);
+}
+.water-hours .muted { margin-left: auto; }
+.btn-water { background: var(--blue); color: #fff; box-shadow: 0 8px 18px -10px var(--blue); }
+.reminder-water { border-color: var(--blue); }
 .alarm-help { margin: 12px 0 0; padding-left: 18px; color: var(--ink-2); }
 .alarm-help li { margin: 3px 0; }
 .reminder-x { width: 28px; height: 28px; border-radius: 50%; color: var(--ink-3); font-size: 1.3rem; line-height: 1; }

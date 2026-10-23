@@ -7,8 +7,11 @@ const TOKEN_KEY = 'maternity_token'
 const PREGNANCY_DAYS = 280
 const DAY_MS = 24 * 60 * 60 * 1000
 
-// Built-in account so the app can be logged into on a fresh device.
-const DEFAULT_USER = { name: 'Prasu', username: 'prasu', password: '123456' }
+// Built-in accounts so the app can be logged into on a fresh device.
+const DEFAULT_USERS = [
+  { name: 'Prasu', username: 'prasu', password: '123456' },
+  ...[1, 2, 3, 4, 5].map((n) => ({ name: `Patient ${n}`, username: `patient${n}`, password: '123456' })),
+]
 
 export const getToken = () => localStorage.getItem(TOKEN_KEY)
 export const setToken = (t) => (t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY))
@@ -105,20 +108,22 @@ async function verifyPassword(password, stored) {
 }
 
 async function ensureDefaultUser(db) {
-  if (db.users.some((u) => u.username === DEFAULT_USER.username)) return
-  db.users.push({
-    id: nextId(db),
-    name: DEFAULT_USER.name,
-    username: DEFAULT_USER.username,
-    password_hash: await hashPassword(DEFAULT_USER.password),
-    lmp_date: null,
-    blood_group: null,
-    doctor_name: null,
-    hospital: null,
-    phone: null,
-    created_at: nowStamp(),
-  })
-  db._dirty = true
+  for (const def of DEFAULT_USERS) {
+    if (db.users.some((u) => u.username === def.username)) continue
+    db.users.push({
+      id: nextId(db),
+      name: def.name,
+      username: def.username,
+      password_hash: await hashPassword(def.password),
+      lmp_date: null,
+      blood_group: null,
+      doctor_name: null,
+      hospital: null,
+      phone: null,
+      created_at: nowStamp(),
+    })
+    db._dirty = true
+  }
 }
 
 // ---------- dates ----------
@@ -139,10 +144,11 @@ const daysBetween = (fromIso, toIso) => Math.round((isoToUtc(toIso) - isoToUtc(f
 
 const PUBLIC_USER_FIELDS = [
   'id', 'name', 'username', 'lmp_date', 'blood_group', 'doctor_name', 'hospital', 'phone',
-  'water_reminder', 'last_backup', 'partner_name', 'partner_phone', 'partner_auto', 'partner_topic',
+  'water_reminder', 'water_from', 'water_to', 'last_backup', 'partner_name', 'partner_phone', 'partner_auto',
+  'partner_topic',
 ]
 const PROFILE_FIELDS = [
-  'name', 'lmp_date', 'blood_group', 'doctor_name', 'hospital', 'phone', 'water_reminder',
+  'name', 'lmp_date', 'blood_group', 'doctor_name', 'hospital', 'phone', 'water_reminder', 'water_from', 'water_to',
   'partner_name', 'partner_phone', 'partner_auto', 'partner_topic',
 ]
 
@@ -307,6 +313,11 @@ const updateMe = (body) =>
         updates.partner_phone = checkText(body.partner_phone, 'WhatsApp number', 20)
       }
       if ('partner_auto' in body) updates.partner_auto = !!body.partner_auto
+      for (const k of ['water_from', 'water_to'])
+        if (k in body) updates[k] = checkNumber(body[k], 'Hour', { min: 0, max: 23, integer: true, inclusive: true })
+      const from = updates.water_from ?? user.water_from ?? 8
+      const to = updates.water_to ?? user.water_to ?? 21
+      if (from >= to) fail('The "to" time must be after the "from" time')
       if ('water_reminder' in body)
         updates.water_reminder = checkNumber(body.water_reminder, 'Reminder', { min: 0, max: 240, integer: true, inclusive: true }) || 0
 

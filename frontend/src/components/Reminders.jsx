@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { api } from '../api.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import { showNotification, startAlarm, stopAlarm, unlockAudio } from '../alarm.js'
-import { WATER_GOAL, todayISO } from '../utils.js'
+import { WATER_GOAL, todayISO, waterSlots } from '../utils.js'
 
 const CHECK_EVERY = 20 * 1000
-const SNOOZE_MIN = 10
-const WATER_HOURS = [8, 21] // only remind about water between 8 am and 9 pm
+const MED_SNOOZE_MIN = 10
+const WATER_SNOOZE_MIN = 15
+const WATER_LATE_MIN = 45 // opening the app long after a water time doesn't ring for it
 
 const seenKey = (userId) => `maternity_reminded_${userId}`
 
-// Per-day record of reminders already shown: 'done', or a snooze-until timestamp.
+// Per-day record of reminders already rung: 'done' or a snooze-until timestamp per medicine,
+// plus the last water time rung and any water snooze.
 function readSeen(userId, today) {
   try {
     const seen = JSON.parse(localStorage.getItem(seenKey(userId)) || '{}')
@@ -29,10 +30,17 @@ function writeSeen(userId, seen) {
   }
 }
 
+const minutesSince = (hhmm, now) => {
+  const [h, m] = hhmm.split(':').map(Number)
+  return now.getHours() * 60 + now.getMinutes() - (h * 60 + m)
+}
+
+const changed = () => window.dispatchEvent(new Event('maternity-data'))
+
 unlockAudio()
 
 // While the app is open (or in the background on Android), rings an alarm at medicine
-// times and nudges about water. Phone-level alarms come from the calendar export.
+// and water times. Phone-level alarms when the app is closed come from the calendar export.
 export default function Reminders() {
   const { user } = useAuth()
   const [banner, setBanner] = useState(null)
@@ -44,9 +52,15 @@ export default function Reminders() {
     setBanner(null)
   }, [])
 
+  const ring = (msg) => {
+    setBanner(msg)
+    startAlarm()
+    showNotification(msg.title, msg.body)
+  }
+
   useEffect(() => {
     const check = async () => {
-      if (bannerRef.current?.medId) return // an alarm is already ringing
+      if (bannerRef.current) return // an alarm is already showing
       const today = todayISO()
       const now = new Date()
       const hm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
@@ -65,25 +79,28 @@ export default function Reminders() {
         if (due && !waiting) {
           seen[key] = 'done'
           writeSeen(user.id, seen)
-          const msg = { medId: m.id, key, title: `💊 Time for ${m.name}`, body: m.dose || 'Tap Taken once you have had it.' }
-          setBanner(msg)
-          startAlarm()
-          showNotification(msg.title, msg.body)
+          ring({ kind: 'med', medId: m.id, key, title: `💊 Time for ${m.name}`, body: m.dose || 'Tap Taken once you have had it.' })
           return
         }
       }
 
-      const every = user.water_reminder || 0
-      const hour = now.getHours()
-      if (every && day.water < WATER_GOAL && hour >= WATER_HOURS[0] && hour < WATER_HOURS[1]) {
-        if (!seen.water) seen.water = Date.now()
-        else if (Date.now() - seen.water >= every * 60000) {
-          seen.water = Date.now()
-          const msg = { title: '💧 Time for a glass of water', body: `${day.water} of ${WATER_GOAL} glasses so far today.` }
-          setBanner(msg)
-          navigator.vibrate?.([200, 100, 200])
-          showNotification(msg.title, msg.body)
+      if (day.water < WATER_GOAL) {
+        const lastDue = waterSlots(user).filter((s) => s <= hm).pop()
+        const snooze = seen.waterSnooze
+        const snoozeOver = typeof snooze === 'number' && Date.now() >= snooze
+        const fresh = lastDue && seen.waterSlot !== lastDue && minutesSince(lastDue, now) <= WATER_LATE_MIN
+        if (snoozeOver || (fresh && typeof snooze !== 'number')) {
+          seen.waterSlot = lastDue || seen.waterSlot
+          delete seen.waterSnooze
+          writeSeen(user.id, seen)
+          ring({
+            kind: 'water',
+            title: '💧 Neellu taagandi — time for water',
+            body: `${day.water} of ${WATER_GOAL} glasses so far today.`,
+          })
+          return
         }
+        if (fresh) seen.waterSlot = lastDue // a newer water time replaces an old snooze
       }
       writeSeen(user.id, seen)
     }
@@ -96,26 +113,39 @@ export default function Reminders() {
       clearInterval(t)
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [user.id, user.water_reminder])
+  }, [user])
 
   useEffect(() => stopAlarm, [])
 
   const taken = async () => {
     await api.toggleMedicine(banner.medId, todayISO()).catch(() => {})
-    window.dispatchEvent(new Event('maternity-data'))
+    changed()
+    dismiss()
+  }
+
+  const drank = async () => {
+    try {
+      const day = await api.daily(todayISO())
+      await api.setWater(todayISO(), day.water + 1)
+      navigator.vibrate?.(30)
+    } catch {
+      /* ignore */
+    }
+    changed()
     dismiss()
   }
 
   const snooze = () => {
     const seen = readSeen(user.id, todayISO())
-    seen[banner.key] = Date.now() + SNOOZE_MIN * 60000
+    if (banner.kind === 'water') seen.waterSnooze = Date.now() + WATER_SNOOZE_MIN * 60000
+    else seen[banner.key] = Date.now() + MED_SNOOZE_MIN * 60000
     writeSeen(user.id, seen)
     dismiss()
   }
 
   if (!banner) return null
   return (
-    <div className={`reminder ${banner.medId ? 'reminder-alarm' : ''}`} role="alert">
+    <div className={`reminder reminder-alarm ${banner.kind === 'water' ? 'reminder-water' : ''}`} role="alert">
       <div className="reminder-top">
         <div className="grow">
           <strong>{banner.title}</strong>
@@ -123,16 +153,16 @@ export default function Reminders() {
         </div>
         <button className="reminder-x" onClick={dismiss} aria-label="Dismiss">×</button>
       </div>
-      {banner.medId ? (
-        <div className="reminder-actions">
-          <button className="btn btn-sm btn-ghost" onClick={snooze}>Snooze {SNOOZE_MIN} min</button>
+      <div className="reminder-actions">
+        <button className="btn btn-sm btn-ghost" onClick={snooze}>
+          Snooze {banner.kind === 'water' ? WATER_SNOOZE_MIN : MED_SNOOZE_MIN} min
+        </button>
+        {banner.kind === 'water' ? (
+          <button className="btn btn-sm btn-water" onClick={drank}>Taagaanu 💧 +1</button>
+        ) : (
           <button className="btn btn-sm btn-primary" onClick={taken}>Taken ✓</button>
-        </div>
-      ) : (
-        <div className="reminder-actions">
-          <Link to="/daily" className="btn btn-sm btn-primary" onClick={dismiss}>Open</Link>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }
